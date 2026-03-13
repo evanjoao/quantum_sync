@@ -6,7 +6,20 @@ from dataclasses import dataclass
 from typing import Tuple
 
 import numpy as np
-from scipy.special import factorial, genlaguerre, sph_harm
+from scipy.special import factorial, genlaguerre
+
+try:
+    # SciPy >= 1.15 replaced sph_harm with sph_harm_y.
+    from scipy.special import sph_harm_y as _sph_harm
+
+    def _eval_sph_harm(l: int, m: int, theta: np.ndarray, phi: np.ndarray) -> np.ndarray:
+        return _sph_harm(l, m, theta, phi)
+
+except ImportError:  # pragma: no cover - older SciPy
+    from scipy.special import sph_harm as _sph_harm
+
+    def _eval_sph_harm(l: int, m: int, theta: np.ndarray, phi: np.ndarray) -> np.ndarray:
+        return _sph_harm(m, l, phi, theta)
 
 A0_ANGSTROM = 0.529177210903
 
@@ -40,7 +53,7 @@ def radial_wavefunction(n: int, l: int, r_angstrom: np.ndarray) -> np.ndarray:
 def hydrogen_wavefunction(n: int, l: int, m: int, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> np.ndarray:
     r, theta, phi = _cartesian_to_spherical(x, y, z)
     radial = radial_wavefunction(n, l, r)
-    angular = sph_harm(m, l, phi, theta)
+    angular = _eval_sph_harm(l, m, theta, phi)
     return radial * angular
 
 
