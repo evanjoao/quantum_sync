@@ -7,6 +7,53 @@ from pathlib import Path
 import bpy
 
 
+def configure_cycles_gpu(preferred_backend: str = "AUTO") -> bool:
+    """Enable Cycles GPU rendering when a compatible device is available."""
+    scene = bpy.context.scene
+    scene.render.engine = 'CYCLES'
+
+    cycles_addon = bpy.context.preferences.addons.get("cycles")
+    if cycles_addon is None:
+        return False
+
+    prefs = cycles_addon.preferences
+    candidates = ["OPTIX", "CUDA", "HIP", "METAL", "ONEAPI"]
+    if preferred_backend and preferred_backend != "AUTO":
+        candidates = [preferred_backend] + [c for c in candidates if c != preferred_backend]
+
+    backend_set = False
+    for backend in candidates:
+        try:
+            prefs.compute_device_type = backend
+            backend_set = True
+            break
+        except Exception:
+            continue
+
+    if not backend_set:
+        return False
+
+    try:
+        prefs.get_devices()
+    except Exception:
+        return False
+
+    enabled_any = False
+    for device in getattr(prefs, "devices", []):
+        try:
+            if getattr(device, "type", "CPU") != "CPU":
+                device.use = True
+                enabled_any = True
+        except Exception:
+            continue
+
+    if not enabled_any:
+        return False
+
+    scene.cycles.device = 'GPU'
+    return True
+
+
 def ensure_quantum_container(name: str = "Volumen_Atomo") -> bpy.types.Object:
     obj = bpy.data.objects.get(name)
     if obj is not None:
@@ -174,7 +221,7 @@ def setup_vse_audio_sync(audio_path: str, channel: int = 1, frame_start: int = 1
     return strip
 
 
-def run_pipeline(events_json_path: str, audio_path: str) -> None:
+def run_pipeline(events_json_path: str, audio_path: str, use_gpu_render: bool = False, gpu_backend: str = "AUTO") -> None:
     obj = ensure_quantum_container("Volumen_Atomo")
     ensure_quantum_properties(obj)
     create_quantum_cloud_material(obj, "Quantum_Cloud")
@@ -182,11 +229,17 @@ def run_pipeline(events_json_path: str, audio_path: str) -> None:
     total = apply_quantum_keyframes_from_json(obj, events_json_path)
     setup_vse_audio_sync(audio_path=audio_path, frame_start=1)
 
+    gpu_enabled = False
+    if use_gpu_render:
+        gpu_enabled = configure_cycles_gpu(preferred_backend=gpu_backend)
+
     print("===============================================")
     print(f"Eventos aplicados al volumen: {total}")
     print(f"Audio sincronizado: {os.path.abspath(audio_path)}")
     print("Modo de sincronización: AUDIO_SYNC")
     print("Interpolación de keyframes: CONSTANT")
+    if use_gpu_render:
+        print(f"GPU en Cycles: {'ACTIVADA' if gpu_enabled else 'NO DISPONIBLE'}")
     print("===============================================")
 
 
@@ -194,4 +247,6 @@ def run_pipeline(events_json_path: str, audio_path: str) -> None:
 # run_pipeline(
 #     events_json_path="/ruta/a/secuencia_estados.json",
 #     audio_path="/ruta/a/Sparks.wav",
+#     use_gpu_render=True,
+#     gpu_backend="AUTO",  # AUTO | OPTIX | CUDA | HIP | METAL | ONEAPI
 # )

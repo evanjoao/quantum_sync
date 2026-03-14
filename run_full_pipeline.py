@@ -15,6 +15,7 @@ def main() -> int:
     parser.add_argument("--workdir", default="/home/evanj/Latex/quantum_sync", help="Directorio de salida")
     parser.add_argument("--points", type=int, default=50_000, help="Puntos por frame en NPZ")
     parser.add_argument("--seed", type=int, default=42, help="Semilla reproducible")
+    parser.add_argument("--device", default="cpu", choices=["cpu", "cuda"], help="Backend de computo para generar NPZ")
     args = parser.parse_args()
 
     workdir = Path(args.workdir).resolve()
@@ -35,12 +36,14 @@ def main() -> int:
         output_npz_path=str(out_npz),
         num_points=args.points,
         seed=args.seed,
+        device=args.device,
     )
 
     print("===============================================")
     print(f"Eventos DSP: {events_json}")
     print(f"Eventos cuánticos: {enriched_json}")
     print(f"Frames para Blender: {out_npz}")
+    print(f"Backend de computo: {args.device.upper()}")
     print("===============================================")
     return 0
 
